@@ -10,7 +10,9 @@ import csv
 import json
 import re
 
-from .definitions import SKIPPEDRANK, OVERVOTE, WRITEIN
+SKIPPEDRANK = -1
+OVERVOTE = -2
+WRITEIN = 'writeIns'
 
 def get_parser_dict():
     """
