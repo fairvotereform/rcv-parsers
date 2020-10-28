@@ -930,8 +930,8 @@ def surveyUSA(ctx):
     candidate_codes.csv - contains two columns ("code" and "candidate") that map cvr code numbers to candidate names.
     """
 
-    csv_df = pd.read_csv(ctx['path'] + 'cvr.csv')
-    candidate_codes_df = pd.read_csv(ctx['path'] + 'candidate_codes.csv')
+    csv_df = pd.read_csv(ctx['path'] + '/cvr.csv')
+    candidate_codes_df = pd.read_csv(ctx['path'] + '/candidate_codes.csv')
 
     # candidate code dict
     candidate_map = {row['code']: row['candidate'] for index, row in candidate_codes_df.iterrows()}
