@@ -265,7 +265,7 @@ def dominion5_10(ctx):
     districtPrecinctPortion_manifest = {}
     with open(path + '/DistrictPrecinctPortionManifest.json') as f:
         for i in json.load(f)['List']:
-            districtPrecinctPortion_manifest[i['PrecinctPortionId']] = i['DistrictID']
+            districtPrecinctPortion_manifest[i['PrecinctPortionId']] = i['DistrictId']
 
     ballotType_manifest = {}
     with open(path + '/BallotTypeManifest.json') as f:
