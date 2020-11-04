@@ -342,14 +342,14 @@ def dominion5_10(ctx):
                 ballotDistrict = district_manifest[ballotDistrictId]['District']
                 ballotDistrictType = districtType_manifest[district_manifest[ballotDistrictId]['DistrictTypeId']]
 
-                if len(current_contests['Cards']) > 1:
-                    print('"Cards" has length greater than 1, not prepared for this. debug')
-                    exit(1)
-
                 ballot_contest_marks = None
-                for ballot_contest in current_contests['Cards'][0]['Contests']:
-                    if ballot_contest['Id'] == current_contest_id:
-                        ballot_contest_marks = ballot_contest['Marks']
+                for cards in current_contests['Cards']:
+                    for ballot_contest in cards['Contests']:
+                        if ballot_contest['Id'] == current_contest_id:
+                            if ballot_contest_marks is not None:
+                                raise (RuntimeError(
+                                    "Contest Id appears twice across a single set of cards. Not expected."))
+                            ballot_contest_marks = ballot_contest['Marks']
 
                 # skip ballot if didn't contain contest
                 if ballot_contest_marks is None:
