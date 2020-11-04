@@ -79,9 +79,6 @@ def common_csv(ctx, path=None):
     return dct
 
 def dominion5_4(ctx):
-    return dominion5_10(ctx)
-
-def dominion5_10(ctx):
 
     path = ctx['path']
 
@@ -216,6 +213,192 @@ def dominion5_10(ctx):
                    'precinctPortion': ballot_precinctPortions,
                    'ballot_type': ballot_types,
                    'countingGroup': ballot_countingGroups}
+
+    # make sure precinctManifest was part of CVR, otherwise exclude precinct column
+    if len(ballot_precincts) != sum(i is None for i in ballot_precincts):
+        ballot_dict['precinct'] = ballot_precincts
+
+    # check ballotIDs are unique
+    if len(set(ballot_dict['ballotID'])) != len(ballot_dict['ballotID']):
+        print("some non-unique ballot IDs")
+        exit(1)
+
+    return ballot_dict
+
+def dominion5_10(ctx):
+
+    path = ctx['path']
+
+    # load manifests, with ids as keys
+    with open(path + '/ContestManifest.json') as f:
+        for i in json.load(f)['List']:
+            if i['Description'] == ctx['office']:
+                current_contest_id = i['Id']
+                current_contest_rank_limit = i['NumOfRanks']
+
+    candidate_manifest = {}
+    with open(path + '/CandidateManifest.json') as f:
+        for i in json.load(f)['List']:
+            candidate_manifest[i['Id']] = i['Description']
+
+    precinctPortion_manifest = {}
+    with open(path + '/PrecinctPortionManifest.json') as f:
+        for i in json.load(f)['List']:
+            precinctPortion_manifest[i['Id']] = {'Portion': i['Description'], 'PrecinctId': i['PrecinctId']}
+
+    precinct_manifest = {}
+    if os.path.isfile(path + '/PrecinctManifest.json'):
+        with open(path + '/PrecinctManifest.json') as f:
+            for i in json.load(f)['List']:
+                precinct_manifest[i['Id']] = i['Description']
+
+    district_manifest = {}
+    with open(path + '/DistrictManifest.json') as f:
+        for i in json.load(f)['List']:
+            district_manifest[i['Id']] = {'District': i['Description'], 'DistrictTypeId': i['DistrictTypeId']}
+
+    districtType_manifest = {}
+    with open(path + '/DistrictTypeManifest.json') as f:
+        for i in json.load(f)['List']:
+            districtType_manifest[i['Id']] = i['Description']
+
+    districtPrecinctPortion_manifest = {}
+    with open(path + '/DistrictPrecinctPortionManifest.json') as f:
+        for i in json.load(f)['List']:
+            districtPrecinctPortion_manifest[i['PrecinctPortionId']] = i['DistrictID']
+
+    ballotType_manifest = {}
+    with open(path + '/BallotTypeManifest.json') as f:
+        for i in json.load(f)['List']:
+            ballotType_manifest[i['Id']] = i['Description']
+
+    countingGroup_manifest = {}
+    with open(path + '/CountingGroupManifest.json') as f:
+        for i in json.load(f)['List']:
+            countingGroup_manifest[i['Id']] = i['Description']
+
+    ballotTypeContest_manifest = {}
+    with open(path + '/BallotTypeContestManifest.json') as f:
+        for i in json.load(f)['List']:
+
+            if i['ContestId'] not in ballotTypeContest_manifest.keys():
+                ballotTypeContest_manifest[i['ContestId']] = []
+
+            ballotTypeContest_manifest[i['ContestId']].append(i['BallotTypeId'])
+
+    tabulator_manifest = {}
+    with open(path + '/TabulatorManifest.json') as f:
+        for i in json.load(f)['List']:
+            tabulator_manifest[i['Id']] = i['VotingLocationName']
+
+    # read in ballots
+    ballot_ranks = []
+    ballot_IDs = []
+    ballot_precinctPortions = []
+    ballot_precincts = []
+    ballot_types = []
+    ballot_countingGroups = []
+    ballot_votingLocation = []
+    ballot_district = []
+    ballot_districtType = []
+
+    for cvr_export in glob.glob(path + "/CvrExport*.json"):
+        with open(cvr_export) as f:
+            for contests in json.load(f)['Sessions']:
+
+                # ballotID
+                ballotID_search = re.search('Images\\\\(.*)\*\.\*', contests['ImageMask'])
+                if ballotID_search:
+                    ballotID = ballotID_search.group(1)
+                else:
+                    print('regex is not working correctly. debug')
+                    exit(1)
+
+                countingGroup = countingGroup_manifest[contests['CountingGroupId']]
+
+                # voting location for ballots
+                ballotVotingLocation = tabulator_manifest[contests['TabulatorId']]
+
+                # for each session use original, or if isCurrent is False,
+                # use modified
+                if contests['Original']['IsCurrent']:
+                    current_contests = contests['Original']
+                else:
+                    current_contests = contests['Modified']
+
+                # precinctId for this ballot
+                precinctPortion = precinctPortion_manifest[current_contests['PrecinctPortionId']]['Portion']
+                precinctId = precinctPortion_manifest[current_contests['PrecinctPortionId']]['PrecinctId']
+
+                precinct = None
+                if precinct_manifest:
+                    precinct = precinct_manifest[precinctId]
+
+                # ballotType for this ballot
+                ballotType = ballotType_manifest[current_contests['BallotTypeId']]
+
+                # district for ballot
+                ballotDistrictId = districtPrecinctPortion_manifest[current_contests['PrecinctPortionId']]
+                ballotDistrict = district_manifest[ballotDistrictId]['District']
+                ballotDistrictType = districtType_manifest[district_manifest[ballotDistrictId]['DistrictTypeId']]
+
+                if len(current_contests['Cards']) > 1:
+                    print('"Cards" has length greater than 1, not prepared for this. debug')
+                    exit(1)
+
+                ballot_contest_marks = None
+                for ballot_contest in current_contests['Cards'][0]['Contests']:
+                    if ballot_contest['Id'] == current_contest_id:
+                        ballot_contest_marks = ballot_contest['Marks']
+
+                # skip ballot if didn't contain contest
+                if ballot_contest_marks is None:
+                    continue
+
+                # check for marks on each rank expected for this contest
+                currentRank = 1
+                current_ballot_ranks = []
+                while currentRank <= current_contest_rank_limit:
+
+                    # find any marks that have the currentRank and aren't Ambiguous
+                    currentRank_marks = [i for i in ballot_contest_marks
+                                         if i['Rank'] == currentRank and i['IsAmbiguous'] is False]
+
+                    currentCandidate = '**error_CZ**'
+
+                    if len(currentRank_marks) == 0:
+                        currentCandidate = SKIPPEDRANK
+                    elif len(currentRank_marks) > 1:
+                        currentCandidate = OVERVOTE
+                    else:
+                        currentCandidate = candidate_manifest[currentRank_marks[0]['CandidateId']]
+
+                    if currentCandidate == '**error_CZ**':
+                        print('error in filtering marks. debug')
+                        exit(1)
+
+                    current_ballot_ranks.append(currentCandidate)
+                    currentRank += 1
+
+                ballot_ranks.append(current_ballot_ranks)
+                ballot_precinctPortions.append(precinctPortion)
+                ballot_precincts.append(precinct)
+                ballot_IDs.append(ballotID)
+                ballot_types.append(ballotType)
+                ballot_countingGroups.append(countingGroup)
+                ballot_votingLocation.append(ballotVotingLocation)
+                ballot_district.append(ballotDistrict)
+                ballot_districtType.append(ballotDistrictType)
+
+    ballot_dict = {'ranks': ballot_ranks,
+                   'weight': [Fraction(1) for b in ballot_ranks],
+                   'ballotID': ballot_IDs,
+                   'precinctPortion': ballot_precinctPortions,
+                   'ballot_type': ballot_types,
+                   'countingGroup': ballot_countingGroups,
+                   'votingLocation': ballot_votingLocation,
+                   'district': ballot_district,
+                   'districtType': ballot_districtType}
 
     # make sure precinctManifest was part of CVR, otherwise exclude precinct column
     if len(ballot_precincts) != sum(i is None for i in ballot_precincts):
