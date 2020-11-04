@@ -373,6 +373,9 @@ def dominion5_10(ctx):
                     else:
                         currentCandidate = candidate_manifest[currentRank_marks[0]['CandidateId']]
 
+                    if ctx['ignore_writeins'] and "write" in currentCandidate.lower():
+                        currentCandidate = SKIPPEDRANK
+
                     if currentCandidate == '**error_CZ**':
                         print('error in filtering marks. debug')
                         exit(1)
