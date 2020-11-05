@@ -800,6 +800,7 @@ def minneapolis(ctx):
             'overvote': OVERVOTE
         }
     path = ctx['path']
+    precincts = []
     ballots = []
     with open(path, "r", encoding='utf8') as f:
         f.readline()
@@ -808,7 +809,13 @@ def minneapolis(ctx):
                           for i in line[1:-1]]
             if choices != ['','','']:
                 ballots.extend([choices] * int(float(line[-1])))
-    return ballots
+            precincts.append(line[0])
+
+    bs = {'ranks': ballots,
+          'weight': [Fraction(1) for b in ballots],
+          'precinct': precincts}
+
+    return bs
 
 def maine(n, ctx):
     path = ctx['path']
