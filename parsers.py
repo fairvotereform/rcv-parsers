@@ -809,7 +809,7 @@ def minneapolis(ctx):
                           for i in line[1:-1]]
             if choices != ['','','']:
                 ballots.extend([choices] * int(float(line[-1])))
-            precincts.append(line[0])
+            precincts.extend(line[0] * int(float(line[-1])))
 
     bs = {'ranks': ballots,
           'weight': [Fraction(1) for b in ballots],
